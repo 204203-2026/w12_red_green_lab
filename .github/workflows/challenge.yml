@@ -1,0 +1,16 @@
+name: Challenge (bonus) — w12_red_green_lab
+on:
+  push:
+    branches: [main, master]
+permissions:
+  contents: read
+jobs:
+  challenge:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: bash init.sh && bash check.sh && cat results/challenge_report.json

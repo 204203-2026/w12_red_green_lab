@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+data/*.db
+results/.backup.*
+simulations/
+
+# editor/session backups
+*.bak_*
+*.bak2_*
+*.bak3_*
+*.prevariant_*
+*.orig_*
+_old/
+
+# internal working notes - never ship to students
+qa/
+HANDOFF.md
