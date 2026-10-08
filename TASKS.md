@@ -51,16 +51,18 @@ Troubleshooting:
 
 The grader enforces four rules. You lose a required check if you get any rule wrong:
 
-1. **`percent_done` is NOT rounded.** Return the raw float. If `3` of `7` are done, it must be `42.857142857142854`, not `42.86` and not `43`. A `round()` anywhere in your implementation will fail the grader's own contract check.
+1. **`percent_done` is NOT rounded.** Return the raw float. If `3` of `7` are done, it must be `100.0 * 3 / 7` (about 42.857142857142857), not `42.86` and not `43`. Compare decimals (floats) with `math.isclose(actual, expected)`, never with `==`. A `round()` anywhere in your implementation will fail the grader's own contract check.
 2. **The scale is 0-100, not 0-1.** Half done is `50.0`, never `0.5`.
 3. **Zero cards must not crash.** If the table is empty, return `{"total": 0, "done": 0, "percent_done": 0.0}`. Return HTTP 200. Do not raise `ZeroDivisionError`. Do not return 500.
 4. **`done` counts `status == "done"` exactly.** No other status counts.
 
 ### The seeded data, and the exact numbers it produces
 
-`init.sh` seeds **4 cards, 2 of them `done`**. "Write tests" and "Lock red" are `done`. "Implement" and "Review" are `todo`. A correct implementation returns these values. Assert them as literals:
+`init.sh` seeds **4 cards, 2 of them `done`**. "Write tests" and "Lock red" are `done`. "Implement" and "Review" are `todo`. A correct implementation returns these values.
 
-| state of the table | `total` | `done` | `percent_done` |
+Use these as the expected values. Compare `total` and `done` (integers) with `==`; compare `percent_done` with `math.isclose`.
+
+| state of the table | `total` | `done` | expected percent_done |
 |---|---|---|---|
 | as seeded | 4 | 2 | `50.0` |
 | seeded + one `done` card | 5 | 3 | `60.0` |
@@ -73,6 +75,16 @@ The third row finds a rounded implementation. **Include a case whose percentage 
 
 - Implement `GET /api/stats` in **`app/main.py`**. The stub already returns `501`. Replace only its body. Reuse the `database()` context manager used by the other routes in that file.
 - `tests/conftest.py` gives you a `client` fixture. Use it as an argument. It gives you a `TestClient` for a **temporary copy** of the database. Each test starts with the seeded 4 cards. Your changes do not affect the next test:
+
+> **Why not ==?**
+>
+> ```python
+> import math
+> 0.1 + 0.2 == 0.3                       # False
+> math.isclose(0.1 + 0.2, 0.3)           # True
+> ```
+>
+> Floats store tiny rounding errors. `math.isclose` allows a tiny tolerance.
 
 ```python
 def test_something(client):          # just name the argument `client`
@@ -92,6 +104,7 @@ client.post("/cards", json={"title": "extra"})                       # 422 - wro
 There is no delete route. For the empty-table case, change the database directly. The `client` fixture in `tests/conftest.py` points the app at a temporary copy. This does not change your real data:
 
 ```python
+import math
 import sqlite3
 from app import main
 
@@ -99,7 +112,9 @@ def test_zero_cards(client):
     with sqlite3.connect(main.DB_PATH) as db:
         db.execute("DELETE FROM cards")
     body = client.get("/api/stats").json()
-    assert body == {"total": 0, "done": 0, "percent_done": 0.0}
+    assert body["total"] == 0
+    assert body["done"] == 0
+    assert math.isclose(body["percent_done"], 0.0, abs_tol=1e-12)
 ```
 
 ## What is already in the repo (read once)
@@ -111,16 +126,21 @@ def test_zero_cards(client):
 
 ## Step 1 — Write and lock stats tests (35 min)
 
-Create `tests/test_stats.py` with at least three `test_` functions that call `GET /api/stats`. Cover the seeded counts. Cover a changed card mix **whose percentage is not a whole number**. Cover the empty table. Assert the exact status code. Assert the exact values from the contract table above as literals. Do not recompute arithmetic. Commit this test-only change now:
+Create `tests/test_stats.py` with at least three `test_` functions that call `GET /api/stats`. Cover the seeded counts. Cover a changed card mix **whose percentage is not a whole number**. Cover the empty table. Assert the exact status code. Use the expected values from the contract table above. Compare integers with `==` and floats with `math.isclose`. Do not recompute arithmetic. Commit this test-only change now:
 
 Here is one complete test. Write the other two yourself using the contract table above:
 
 ```python
 # tests/test_stats.py
+import math
+
 def test_seeded_counts(client):
     response = client.get("/api/stats")
     assert response.status_code == 200
-    assert response.json() == {"total": 4, "done": 2, "percent_done": 50.0}
+    body = response.json()
+    assert body["total"] == 4
+    assert body["done"] == 2
+    assert math.isclose(body["percent_done"], 50.0)
 ```
 
 `client` comes from `tests/conftest.py`. Name it as an argument. pytest gives it to you. It acts as a browser connected to the app. You do not need to start a server.
@@ -205,8 +225,8 @@ This is the Week 12 lesson. The agent applies the rule to itself: an `ERROR` is 
 | it asks | you answer |
 |---|---|
 | which execution approach — subagent-driven or native/inline? (end of 2b) | nothing yet. The 2c prompt already names `executing-plans`. That skill is inline |
-| “Authorize worktree creation, or permit implementation on `main`?” | `Implement on main. No worktree.` |
-| “Implementation complete … merge, open a PR, or keep the branch?” | `Keep the branch as-is.` — then commit yourself, next step |
+| "Authorize worktree creation, or permit implementation on `main`?" | `Implement on main. No worktree.` |
+| "Implementation complete … merge, open a PR, or keep the branch?" | `Keep the branch as-is.` — then commit yourself, next step |
 
 The execution skill calls two more Superpowers skills itself. They are `using-git-worktrees` and `finishing-a-development-branch`. They are the skills that ask the two questions in the table above.
 

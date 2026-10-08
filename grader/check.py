@@ -151,7 +151,17 @@ def app_green():
                 seeded = client.get("/api/stats")
                 if seeded.status_code != 200:
                     return False
-                if seeded.json() != {"total": 4, "done": 2, "percent_done": 50.0}:
+                body = seeded.json()
+                if not (
+                    isinstance(body, dict)
+                    and set(body) == {"total", "done", "percent_done"}
+                    and type(body["total"]) is int
+                    and body["total"] == 4
+                    and type(body["done"]) is int
+                    and body["done"] == 2
+                    and isinstance(body["percent_done"], float)
+                    and abs(body["percent_done"] - 50.0) < 1e-12
+                ):
                     return False
 
                 for index in range(3):
